@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover" name="viewport"/>
+    <title>FigGo - Buscar Profesionales</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#4361EE",
+                        "primary-dark": "#3046C9",
+                        "background-light": "#F8FAFC",
+                        "background-dark": "#0F172A",
+                        "card-light": "#FFFFFF",
+                        "card-dark": "#1E293B",
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            min-height: max(884px, 100dvh);
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        select {
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1rem;
+            padding-right: 2rem;
+        }
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 24px;
+            max-width: 400px;
+            width: 100%;
+            transform: scale(0.9);
+            transition: transform 0.3s;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-overlay.active .modal-content {
+            transform: scale(1);
+        }
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: #F8FAFC;
+            border-radius: 12px;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+
+    <!-- MODAL DE CONTACTO -->
+    <div id="modal-overlay" class="modal-overlay" onclick="cerrarModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="p-6">
+                <!-- Header del modal -->
+                <div class="flex flex-col items-center mb-6">
+                    <div id="modal-iniciales" class="w-20 h-20 bg-primary rounded-full flex items-center justify-center text-white text-2xl font-bold mb-3"></div>
+                    <h2 id="modal-nombre" class="text-xl font-bold text-slate-900 dark:text-white"></h2>
+                    <p id="modal-especialidad" class="text-primary font-medium text-sm"></p>
+                </div>
+
+                <!-- Información detallada -->
+                <div class="space-y-3 mb-6">
+                    <div class="info-item dark:bg-slate-800">
+                        <span class="material-icons-outlined text-primary">location_on</span>
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Ubicación</p>
+                            <p id="modal-ubicacion" class="text-sm font-medium text-slate-900 dark:text-white"></p>
+                        </div>
+                    </div>
+                    
+                    <div class="info-item dark:bg-slate-800">
+                        <span class="material-icons-outlined text-primary">school</span>
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Nivel educativo</p>
+                            <p id="modal-educacion" class="text-sm font-medium text-slate-900 dark:text-white"></p>
+                        </div>
+                    </div>
+                    
+                    <div class="info-item dark:bg-slate-800">
+                        <span class="material-icons-outlined text-primary">work</span>
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Experiencia</p>
+                            <p id="modal-experiencia" class="text-sm font-medium text-slate-900 dark:text-white"></p>
+                        </div>
+                    </div>
+                    
+                    <div class="info-item dark:bg-slate-800">
+                        <span class="material-icons-outlined text-primary">star</span>
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Calificación</p>
+                            <p id="modal-estrellas" class="text-sm font-medium text-slate-900 dark:text-white"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botones de contacto -->
+                <div class="space-y-3">
+                    <button id="modal-email" class="w-full bg-primary hover:bg-primary-dark text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all">
+                        <span class="material-icons-outlined text-xl">mail</span>
+                        Contactar por Correo
+                    </button>
+                    
+                    <button id="modal-phone" class="w-full bg-primary hover:bg-primary-dark text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all">
+                        <span class="material-icons-outlined text-xl">call</span>
+                        Llamar ahora
+                    </button>
+                    
+                    <button id="modal-whatsapp" class="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all">
+                        <span class="material-icons-outlined text-xl">chat</span>
+                        WhatsApp
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HEADER -->
+    <header class="pt-8 pb-4 px-6 text-center">
+        <div class="flex items-center justify-center gap-2 mb-1">
+            <span class="material-icons-outlined text-primary text-2xl">search</span>
+            <h1 class="text-2xl font-bold text-primary dark:text-blue-400">Buscar Profesionales</h1>
+        </div>
+        <p class="text-sm text-slate-500 dark:text-slate-400">Encuentra talento verificado en Nariño</p>
+    </header>
+
+    <div class="px-6 mb-6">
+        <hr class="border-slate-200 dark:border-slate-800"/>
+    </div>
+
+    <main class="flex-1 px-4 overflow-y-auto hide-scrollbar pb-36">
+        <!-- FILTROS -->
+        <div class="grid grid-cols-2 gap-3 mb-6">
+            <!-- Área -->
+            <select id="filtro-area" class="bg-card-light dark:bg-card-dark border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-sm text-slate-700 dark:text-slate-200">
+                <option value="">Área</option>
+                <option value="Tecnología e Informática">Tecnología e Informática</option>
+                <option value="Construcción y Oficios">Construcción y Oficios</option>
+                <option value="Automotriz y Mecánica">Automotriz y Mecánica</option>
+                <option value="Salud y Belleza">Salud y Belleza</option>
+                <option value="Alimentos y Servicios">Alimentos y Servicios</option>
+                <option value="Educación y Oficina">Educación y Oficina</option>
+                <option value="Transporte y Logística">Transporte y Logística</option>
+                <option value="Artes y Manualidades">Artes y Manualidades</option>
+                <option value="Servicios Generales">Servicios Generales</option>
+                <option value="Industria y Producción">Industria y Producción</option>
+                <option value="Medios y Comunicación">Medios y Comunicación</option>
+                <option value="Especialidades Técnicas">Especialidades Técnicas</option>
+                <option value="Otros Servicios">Otros Servicios</option>
+            </select>
+
+            <!-- Especialidad -->
+            <select id="filtro-especialidad" class="bg-card-light dark:bg-card-dark border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-sm text-slate-700 dark:text-slate-200">
+                <option value="">Especialidad</option>
+            </select>
+
+            <!-- Experiencia -->
+            <select id="filtro-experiencia" class="bg-card-light dark:bg-card-dark border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-sm text-slate-700 dark:text-slate-200">
+                <option value="">Experiencia</option>
+                <option value="Estudiante/Aprendiz">Estudiante/Aprendiz</option>
+                <option value="Menos de 6 años">Menos de 6 años</option>
+                <option value="6 meses - 1 año">6 meses - 1 año</option>
+                <option value="1-2 años">1-2 años</option>
+                <option value="2-3 años">2-3 años</option>
+                <option value="3-5 años">3-5 años</option>
+                <option value="5-7 años">5-7 años</option>
+                <option value="7-10 años">7-10 años</option>
+                <option value="10-15 años">10-15 años</option>
+                <option value="15-20 años">15-20 años</option>
+            </select>
+
+            <!-- Educación -->
+            <select id="filtro-educacion" class="bg-card-light dark:bg-card-dark border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-sm text-slate-700 dark:text-slate-200">
+                <option value="">Educación</option>
+                <option value="Bachillerato">Bachillerato</option>
+                <option value="Tecnico/Tecnologo">Técnico/Tecnólogo</option>
+                <option value="Profesional">Profesional</option>
+                <option value="Postgrado">Postgrado</option>
+            </select>
+
+            <!-- Municipio -->
+            <select id="filtro-municipio" class="bg-card-light dark:bg-card-dark border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-sm text-slate-700 dark:text-slate-200 col-span-2">
+                <option value="">Municipio</option>
+            </select>
+        </div>
+
+        <!-- Botón Buscar -->
+        <div class="px-2 mb-8">
+            <button id="btn-buscar" class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-4 rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98]">
+                <span class="material-icons-outlined">search</span>
+                Buscar Profesionales
+                <span id="resultado-count" class="bg-white/20 px-2 py-0.5 rounded-full text-xs">0</span>
+            </button>
+        </div>
+
+        <!-- RESULTADOS -->
+        <div class="bg-slate-100/50 dark:bg-slate-800/50 rounded-2xl p-4">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100">Resultados de Búsqueda</h2>
+                <span id="resultados-total" class="text-sm font-medium text-primary dark:text-blue-400">0 encontrados</span>
+            </div>
+            <div id="resultados-container" class="space-y-3">
+                <!-- Se llenará con JavaScript -->
+                <div class="text-center py-8 text-slate-500 dark:text-slate-400">
+                    Cargando trabajadores...
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Configuración Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBTVXBVyh7q87TI1I3W0L5nXqQ8jXQqQ8k",
+            authDomain: "figgo-d9d57.firebaseapp.com",
+            databaseURL: "https://figgo-d9d57-default-rtdb.firebaseio.com",
+            projectId: "figgo-d9d57",
+            storageBucket: "figgo-d9d57.appspot.com",
+            messagingSenderId: "123456789012",
+            appId: "1:123456789012:web:abc123def456ghi789"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const usersRef = database.ref('freggo_checkpoint4/users');
+
+        // Variables
+        let todosTrabajadores = [];
+        let trabajadorSeleccionado = null;
+
+        // Modal functions
+        const modal = document.getElementById('modal-overlay');
+        
+        function abrirModal(trabajador) {
+            trabajadorSeleccionado = trabajador;
+            
+            // Llenar información del modal
+            document.getElementById('modal-iniciales').textContent = trabajador.iniciales;
+            document.getElementById('modal-nombre').textContent = `${trabajador.nombre} ${trabajador.apellido}`;
+            document.getElementById('modal-especialidad').textContent = trabajador.especialidad || trabajador.area || 'Profesional';
+            document.getElementById('modal-ubicacion').textContent = trabajador.municipio || 'No especificada';
+            document.getElementById('modal-educacion').textContent = trabajador.nivel_educativo || 'No especificada';
+            document.getElementById('modal-experiencia').textContent = trabajador.experiencia || 'No especificada';
+            
+            // Generar estrellas
+            const estrellas = '★'.repeat(trabajador.stars) + '☆'.repeat(5 - trabajador.stars);
+            document.getElementById('modal-estrellas').innerHTML = estrellas;
+            
+            modal.classList.add('active');
+        }
+
+        function cerrarModal(event) {
+            if (!event || event.target === modal) {
+                modal.classList.remove('active');
+                trabajadorSeleccionado = null;
+            }
+        }
+
+        // Configurar botones del modal
+        document.getElementById('modal-email').addEventListener('click', () => {
+            if (trabajadorSeleccionado?.correo) {
+                window.location.href = `mailto:${trabajadorSeleccionado.correo}`;
+            } else {
+                alert('Este profesional no tiene correo registrado');
+            }
+            cerrarModal();
+        });
+
+        document.getElementById('modal-phone').addEventListener('click', () => {
+            if (trabajadorSeleccionado?.telefono) {
+                window.location.href = `tel:${trabajadorSeleccionado.telefono}`;
+            } else {
+                alert('Este profesional no tiene teléfono registrado');
+            }
+            cerrarModal();
+        });
+
+        document.getElementById('modal-whatsapp').addEventListener('click', () => {
+            if (trabajadorSeleccionado?.telefono) {
+                const telefono = trabajadorSeleccionado.telefono.replace(/[^0-9]/g, '');
+                const mensaje = encodeURIComponent('Hola, me interesa tu servicio profesional');
+                window.open(`https://wa.me/${telefono}?text=${mensaje}`, '_blank');
+            } else {
+                alert('Este profesional no tiene WhatsApp registrado');
+            }
+            cerrarModal();
+        });
+
+        // Función para limpiar valores
+        function limpiarValor(valor) {
+            if (!valor) return '';
+            if (typeof valor === 'string') {
+                return valor.replace(/^"|"$/g, '');
+            }
+            return String(valor);
+        }
+
+        // Cargar trabajadores
+        async function cargarTrabajadores() {
+            try {
+                const snapshot = await usersRef.once('value');
+                const users = snapshot.val();
+                
+                if (!users) {
+                    document.getElementById('resultados-container').innerHTML = `
+                        <div class="text-center py-8 text-slate-500 dark:text-slate-400">
+                            No hay trabajadores registrados
+                        </div>
+                    `;
+                    return;
+                }
+                
+                todosTrabajadores = [];
+                
+                Object.values(users).forEach(user => {
+                    const tipo = limpiarValor(user.tipo_de_cuenta);
+                    if (tipo === 'Trabajador') {
+                        const nombre = limpiarValor(user.nombre) || '';
+                        const apellido = limpiarValor(user.apellido) || '';
+                        const telefono = limpiarValor(user.telefono) || limpiarValor(user.celular) || '';
+                        
+                        todosTrabajadores.push({
+                            nombre: nombre,
+                            apellido: apellido,
+                            area: limpiarValor(user.Area_especializacion) || '',
+                            especialidad: limpiarValor(user.especialidad) || '',
+                            experiencia: limpiarValor(user.experiencia) || '',
+                            nivel_educativo: limpiarValor(user.nivel_educativo) || '',
+                            municipio: limpiarValor(user.municipio) || '',
+                            stars: Number(user.stars) || 0,
+                            correo: limpiarValor(user.correo) || '',
+                            telefono: telefono,
+                            iniciales: (nombre[0] || '') + (apellido[0] || '')
+                        });
+                    }
+                });
+                
+                mostrarResultados(todosTrabajadores);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('resultados-container').innerHTML = `
+                    <div class="text-center py-8 text-red-500">
+                        Error al cargar datos
+                    </div>
+                `;
+            }
+        }
+
+        // Municipios
+        const municipios = [
+            "Pasto", "Ipiales", "Tumaco", "Samaniego", "La Unión", "Túquerres", "Sandoná", "El Charco",
+            "Barbacoas", "Francisco Pizarro", "La Tola", "Maguí Payán", "Mosquera", "Olaya Herrera",
+            "Roberto Payán", "Santa Bárbara", "El Peñol", "El Rosario", "San Pablo", "San Bernardo",
+            "San Lorenzo", "Cumbitara", "Los Andes", "Mallama", "Policarpa", "Potosí", "Providencia",
+            "Santa Cruz", "Arboleda", "Belén", "Buesaco", "Colón", "Consacá", "Contadero", "Córdoba",
+            "Cuaspud", "Cumbal", "El Tablón", "El Tambo", "Funes", "Guachucal", "Gualmatán", "Iles",
+            "Imués", "La Cruz", "La Florida", "La Llanada", "Leiva", "Linares"
+        ].sort();
+
+        const municipioSelect = document.getElementById('filtro-municipio');
+        municipios.forEach(m => {
+            const option = document.createElement('option');
+            option.value = m;
+            option.textContent = m;
+            municipioSelect.appendChild(option);
+        });
+
+        // Especialidades por área (solo algunas como ejemplo)
+        const especialidadesPorArea = {
+            "Tecnología e Informática": [
+                "Técnico en Computación", "Desarrollador de Software", "Administrador de Redes",
+                "Soporte Técnico", "Analista de Sistemas", "Diseñador Web", "Programador",
+                "Especialista en Ciberseguridad", "Técnico en Celulares", "Ingeniero de Sistemas",
+                "Administrador de Bases de Datos", "Especialista en Cloud Computing", "Técnico en Impresoras",
+                "Desarrollador de Apps Móviles"
+            ],
+            "Salud y Belleza": [
+                "Barbero", "Peluquero/Estilista", "Manicurista/Pedicurista", "Esteticista",
+                "Cosmetólogo", "Maquilador Profesional", "Masajista", "Técnico en Enfermería",
+                "Asistente Dental", "Óptico Técnico", "Farmacéutico", "Podólogo",
+                "Estilista de extensiones de pelo"
+            ]
+        };
+
+        document.getElementById('filtro-area').addEventListener('change', function(e) {
+            const area = e.target.value;
+            const especialidadSelect = document.getElementById('filtro-especialidad');
+            especialidadSelect.innerHTML = '<option value="">Especialidad</option>';
+            
+            if (area && especialidadesPorArea[area]) {
+                especialidadesPorArea[area].forEach(esp => {
+                    const option = document.createElement('option');
+                    option.value = esp;
+                    option.textContent = esp;
+                    especialidadSelect.appendChild(option);
+                });
+            }
+        });
+
+        function filtrarTrabajadores() {
+            const area = document.getElementById('filtro-area').value;
+            const especialidad = document.getElementById('filtro-especialidad').value;
+            const experiencia = document.getElementById('filtro-experiencia').value;
+            const educacion = document.getElementById('filtro-educacion').value;
+            const municipio = document.getElementById('filtro-municipio').value;
+            
+            const filtrados = todosTrabajadores.filter(t => {
+                if (area && t.area !== area) return false;
+                if (especialidad && t.especialidad !== especialidad) return false;
+                if (experiencia && t.experiencia !== experiencia) return false;
+                if (educacion && t.nivel_educativo !== educacion) return false;
+                if (municipio && t.municipio !== municipio) return false;
+                return true;
+            });
+            
+            mostrarResultados(filtrados);
+        }
+
+        function mostrarResultados(trabajadores) {
+            const container = document.getElementById('resultados-container');
+            const totalSpan = document.getElementById('resultados-total');
+            const countSpan = document.getElementById('resultado-count');
+            
+            totalSpan.textContent = `${trabajadores.length} encontrados`;
+            countSpan.textContent = trabajadores.length;
+            
+            if (trabajadores.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-slate-500 dark:text-slate-400">
+                        No se encontraron trabajadores
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = '';
+            trabajadores.forEach(t => {
+                const colores = ['bg-indigo-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500'];
+                const colorIndex = (t.nombre.charCodeAt(0) || 0) % colores.length;
+                
+                const estrellas = Array(5).fill(0).map((_, i) => 
+                    i < t.stars 
+                        ? '<span class="material-icons-outlined text-yellow-400 text-base">star</span>'
+                        : '<span class="material-icons-outlined text-slate-300 dark:text-slate-600 text-base">star</span>'
+                ).join('');
+                
+                const card = document.createElement('div');
+                card.className = 'bg-card-light dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-slate-700';
+                card.innerHTML = `
+                    <div class="flex gap-4">
+                        <div class="w-14 h-14 ${colores[colorIndex]} rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0">
+                            ${t.iniciales || '??'}
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="font-bold text-slate-900 dark:text-white">${t.nombre} ${t.apellido}</h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${t.especialidad || t.area || 'Sin especialidad'} • ${t.municipio || 'Sin ubicación'}</p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">${t.nivel_educativo || 'N/E'} • ${t.experiencia || 'Sin experiencia'}</p>
+                            <div class="flex items-center gap-1 mt-2">
+                                ${estrellas}
+                                <span class="text-xs font-bold text-yellow-600 dark:text-yellow-500 ml-1">${t.stars}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick='abrirModal(${JSON.stringify(t).replace(/'/g, "\\'")})' 
+                            class="w-full mt-3 bg-primary hover:bg-primary-dark text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+                        <span class="material-icons-outlined text-lg">contact_mail</span>
+                        Contactar
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        document.getElementById('btn-buscar').addEventListener('click', filtrarTrabajadores);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            cargarTrabajadores();
+        });
+    </script>
+</body>
+</html>
